@@ -24,6 +24,7 @@ import org.testcontainers.containers.ContainerState;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -65,9 +66,23 @@ public class RunnerTest {
 
     private void runTestInDockerInstances(int runnersCount) {
         LOGGER.info("Starting " + runnersCount + " docker instances");
+        LOGGER.info("Building docker image");
+        ImageFromDockerfile mavenImage = new ImageFromDockerfile()
+                .withFileFromPath("src", Paths.get(".."))
+                .withDockerfileFromBuilder(builder ->
+                        builder
+                                .from("maven:3.6.3-jdk-8")
+                                .copy("src", "/usr/src/maven")
+                                .build());
+        try {
+            Files.createDirectories(Paths.get("../hazelcast/target/surefire-reports"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        LOGGER.info("Starting docker instance");
 
         List<GenericContainer<?>> containers = IntStream.range(0, runnersCount)
-                .mapToObj(this::createContainer)
+                .mapToObj((int i) -> createContainer(i, mavenImage))
                 .collect(Collectors.toList());
         await("docker instances have finished").atMost(Duration.ofMinutes(60))
                 .until(() -> containers.stream().noneMatch(ContainerState::isRunning));
@@ -75,14 +90,17 @@ public class RunnerTest {
                 .allMatch(c -> Objects.equals(c.getCurrentContainerInfo().getState().getExitCodeLong(), 0L));
     }
 
-    private GenericContainer<?> createContainer(int i) {
+    private GenericContainer<?> createContainer(int i, ImageFromDockerfile mavenImage) {
         char containerIdx = (char) ('a' + i);
         String shortName = "builder-" + containerIdx;
         String name = shortName + "-" + testRunId;
-        GenericContainer<?> mavenContainer = new GenericContainer<>("maven:3.6.3-jdk-8")
+
+//        GenericContainer<?> mavenContainer = new GenericContainer<>("maven:3.6.3-jdk-8")
+        GenericContainer<?> mavenContainer = new GenericContainer<>(mavenImage)
                 .withCreateContainerCmdModifier(cmd -> cmd.withName(name))
                 .withCreateContainerCmdModifier(cmd -> cmd.getHostConfig().withCpuCount(8L))
-                .withFileSystemBind("..", "/usr/src/maven", BindMode.READ_WRITE)
+//                .withFileSystemBind("..", "/usr/src/maven", BindMode.READ_ONLY)
+                .withFileSystemBind("../hazelcast/target/surefire-reports", "/usr/src/maven/hazelcast/target/surefire-reports", BindMode.READ_WRITE)
                 .withFileSystemBind(System.getProperty("user.home") + "/.m2", "/root/.m2", BindMode.READ_WRITE)
                 .withWorkingDirectory("/usr/src/maven")
                 .withNetwork(newNetwork(name))
