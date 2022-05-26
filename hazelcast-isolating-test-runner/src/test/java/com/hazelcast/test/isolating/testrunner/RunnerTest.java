@@ -67,20 +67,9 @@ public class RunnerTest {
     private void runTestInDockerInstances(int runnersCount) {
         LOGGER.info("Starting " + runnersCount + " docker instances");
         LOGGER.info("Building docker image");
-        ImageFromDockerfile mavenImage = new ImageFromDockerfile()
-                .withFileFromPath("src", Paths.get(".."))
-                .withDockerfileFromBuilder(builder ->
-                        builder
-                                .from("maven:3.6.3-jdk-8")
-                                .copy("src", "/usr/src/maven")
-                                .build());
-        try {
-            Files.createDirectories(Paths.get("../hazelcast/target/surefire-reports"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        LOGGER.info("Starting docker instance");
-
+        ImageFromDockerfile mavenImage = prepareMavenImage();
+        LOGGER.info("Starting docker instances");
+        precreateSurefireReportsDirectory();
         List<GenericContainer<?>> containers = IntStream.range(0, runnersCount)
                 .mapToObj((int i) -> createContainer(i, mavenImage))
                 .collect(Collectors.toList());
@@ -90,16 +79,38 @@ public class RunnerTest {
                 .allMatch(c -> Objects.equals(c.getCurrentContainerInfo().getState().getExitCodeLong(), 0L));
     }
 
+    private void precreateSurefireReportsDirectory() {
+        try {
+            Files.createDirectories(Paths.get("../hazelcast/target/surefire-reports"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private ImageFromDockerfile prepareMavenImage() {
+        ImageFromDockerfile mavenImage = new ImageFromDockerfile("mvn-with-hz-" + testRunId, false)
+                .withFileFromPath("src", Paths.get(".."))
+                .withDockerfileFromBuilder(builder ->
+                        builder
+                                .from("maven:3.8.5-jdk-8")
+                                .copy("src", "/usr/src/maven")
+                                .build());
+        GenericContainer<?> mavenContainer = new GenericContainer<>(mavenImage).withCommand("mvn -v");
+        mavenContainer.start();
+        mavenContainer.followOutput(new Slf4jLogConsumer(LOGGER).withPrefix("mvn-with-hz"));
+
+        LOGGER.info("Docker image with sources: " + mavenImage.getDockerImageName());
+        return mavenImage;
+    }
+
     private GenericContainer<?> createContainer(int i, ImageFromDockerfile mavenImage) {
         char containerIdx = (char) ('a' + i);
         String shortName = "builder-" + containerIdx;
         String name = shortName + "-" + testRunId;
 
-//        GenericContainer<?> mavenContainer = new GenericContainer<>("maven:3.6.3-jdk-8")
-        GenericContainer<?> mavenContainer = new GenericContainer<>(mavenImage)
+        GenericContainer<?> mavenContainer = new GenericContainer<>(mavenImage.getDockerImageName())
                 .withCreateContainerCmdModifier(cmd -> cmd.withName(name))
                 .withCreateContainerCmdModifier(cmd -> cmd.getHostConfig().withCpuCount(8L))
-//                .withFileSystemBind("..", "/usr/src/maven", BindMode.READ_ONLY)
                 .withFileSystemBind("../hazelcast/target/surefire-reports", "/usr/src/maven/hazelcast/target/surefire-reports", BindMode.READ_WRITE)
                 .withFileSystemBind(System.getProperty("user.home") + "/.m2", "/root/.m2", BindMode.READ_WRITE)
                 .withWorkingDirectory("/usr/src/maven")
