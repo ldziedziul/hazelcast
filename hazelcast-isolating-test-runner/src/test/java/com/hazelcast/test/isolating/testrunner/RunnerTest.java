@@ -92,7 +92,7 @@ public class RunnerTest {
                 .withFileFromPath("src", Paths.get(".."))
                 .withDockerfileFromBuilder(builder ->
                         builder
-                                .from("maven:3.8.5-jdk-8")
+                                .from("maven:3.6.3-jdk-8")
                                 .copy("src", "/usr/src/maven")
                                 .build());
         GenericContainer<?> mavenContainer = new GenericContainer<>(mavenImage).withCommand("mvn -v");
