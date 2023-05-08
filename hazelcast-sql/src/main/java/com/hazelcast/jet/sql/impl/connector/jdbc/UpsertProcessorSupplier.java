@@ -23,6 +23,7 @@ import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.DataSerializable;
 import com.hazelcast.security.impl.function.SecuredFunction;
 import com.hazelcast.security.permission.ConnectorPermission;
+import com.hazelcast.sql.impl.SqlExceptionUtils;
 import com.hazelcast.sql.impl.row.JetSqlRow;
 
 import javax.annotation.Nonnull;
@@ -70,7 +71,7 @@ public class UpsertProcessorSupplier
                             ps.setObject(j + 1, row.get(j));
                         }
                     },
-                    SQLExceptionUtils::isNonTransientException,
+                    SqlExceptionUtils::isNonTransientException,
                     false,
                     batchLimit
             );

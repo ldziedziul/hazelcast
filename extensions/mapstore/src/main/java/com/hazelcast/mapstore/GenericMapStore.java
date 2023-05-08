@@ -20,8 +20,8 @@ import com.hazelcast.dataconnection.impl.JdbcDataConnection;
 import com.hazelcast.map.MapLoaderLifecycleSupport;
 import com.hazelcast.map.MapStore;
 import com.hazelcast.nio.serialization.genericrecord.GenericRecord;
+import com.hazelcast.sql.impl.SqlExceptionUtils;
 
-import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -73,7 +73,7 @@ public class GenericMapStore<K> extends GenericMapLoader<K>
             sqlService.execute(queries.storeSink(), jdbcParameters.getParams()).close();
         } catch (Exception e) {
 
-            if (isIntegrityConstraintViolation(e)) {
+            if (SqlExceptionUtils.isIntegrityConstraintViolation(e)) {
 
                 // Try to update the row
                 jdbcParameters.shiftIdParameterToEnd();
@@ -113,32 +113,4 @@ public class GenericMapStore<K> extends GenericMapLoader<K>
         sqlService.execute(queries.deleteAll(keys.size()), keys.toArray()).close();
     }
 
-    // SQLException returns SQL state in five-digit number.
-    // These five-digit numbers tell about the status of the SQL statements.
-    // The SQLSTATE values consists of two fields.
-    // The class, which is the first two characters of the string, and
-    // the subclass, which is the terminating three characters of the string.
-    // See https://en.wikipedia.org/wiki/SQLSTATE for cate
-    static boolean isIntegrityConstraintViolation(Exception exception) {
-        boolean result = false;
-        SQLException sqlException = findSQLException(exception);
-        if (sqlException != null) {
-            String sqlState = sqlException.getSQLState();
-            if (sqlState != null) {
-                result = sqlState.startsWith("23");
-            }
-        }
-        return result;
-    }
-
-    static SQLException findSQLException(Throwable throwable) {
-        Throwable rootCause = throwable;
-        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
-            rootCause = rootCause.getCause();
-            if (rootCause instanceof SQLException) {
-                return (SQLException) rootCause;
-            }
-        }
-        return null;
-    }
 }

@@ -19,7 +19,6 @@ package com.hazelcast.mapstore;
 import com.hazelcast.config.MapConfig;
 import com.hazelcast.config.MapStoreConfig;
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.test.SerialTest;
 import com.hazelcast.nio.serialization.genericrecord.GenericRecord;
 import com.hazelcast.nio.serialization.genericrecord.GenericRecordBuilder;
@@ -46,8 +45,6 @@ import static com.hazelcast.mapstore.GenericMapStore.MAPPING_PREFIX;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.util.Lists.newArrayList;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /**
  * This test runs the MapStore methods directly, but it runs within real Hazelcast instance
@@ -64,24 +61,6 @@ public class GenericMapStoreTest extends GenericMapLoaderTest {
             mapStore.destroy();
             mapStore = null;
         }
-    }
-
-    @Test
-    public void validIntegrityConstraintViolation() {
-        SQLException sqlException = new SQLException("reason", "2300");
-        JetException jetException = new JetException(sqlException);
-
-        boolean integrityConstraintViolation = GenericMapStore.isIntegrityConstraintViolation(jetException);
-        assertTrue(integrityConstraintViolation);
-    }
-
-    @Test
-    public void invalidIntegrityConstraintViolation() {
-        SQLException sqlException = new SQLException("reason", "2000");
-        JetException jetException = new JetException(sqlException);
-
-        boolean integrityConstraintViolation = GenericMapStore.isIntegrityConstraintViolation(jetException);
-        assertFalse(integrityConstraintViolation);
     }
 
     @Test

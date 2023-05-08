@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.sql.impl.connector.jdbc;
+package com.hazelcast.sql.impl;
 
 import java.sql.SQLException;
 import java.sql.SQLNonTransientException;
 
-public final class SQLExceptionUtils {
+public final class SqlExceptionUtils {
 
-    private SQLExceptionUtils() {
+    private SqlExceptionUtils() {
     }
 
     @SuppressWarnings("BooleanExpressionComplexity")
-    static boolean isNonTransientException(SQLException e) {
+    public static boolean isNonTransientException(SQLException e) {
         SQLException next = e.getNextException();
         return e instanceof SQLNonTransientException
-               || e.getCause() instanceof SQLNonTransientException
-               || !isTransientCode(e.getSQLState())
-               || (next != null && e != next && isNonTransientException(next));
+                || e.getCause() instanceof SQLNonTransientException
+                || !isTransientCode(e.getSQLState())
+                || (next != null && e != next && isNonTransientException(next));
     }
 
     private static boolean isTransientCode(String code) {
@@ -62,5 +62,37 @@ public final class SQLExceptionUtils {
             default:
                 return false;
         }
+    }
+
+    // SQLException returns SQL state in five-digit number.
+    // These five-digit numbers tell about the status of the SQL statements.
+    // The SQLSTATE values consists of two fields.
+    // The class, which is the first two characters of the string, and
+    // the subclass, which is the terminating three characters of the string.
+    // See https://en.wikipedia.org/wiki/SQLSTATE for cate
+    public static boolean isIntegrityConstraintViolation(Throwable exception) {
+        boolean result = false;
+        SQLException sqlException = findSQLException(exception);
+        if (sqlException != null) {
+            String sqlState = sqlException.getSQLState();
+            if (sqlState != null) {
+                result = sqlState.startsWith("23");
+            }
+        }
+        return result;
+    }
+
+    private static SQLException findSQLException(Throwable throwable) {
+        Throwable rootCause = throwable;
+        while (rootCause != null) {
+            if (rootCause instanceof SQLException) {
+                return (SQLException) rootCause;
+            }
+            if (rootCause.getCause() == rootCause) {
+                break;
+            }
+            rootCause = rootCause.getCause();
+        }
+        return null;
     }
 }
