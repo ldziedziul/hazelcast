@@ -57,6 +57,7 @@ import static com.hazelcast.jet.config.ProcessingGuarantee.AT_LEAST_ONCE;
 import static com.hazelcast.jet.config.ProcessingGuarantee.EXACTLY_ONCE;
 import static com.hazelcast.jet.impl.util.Util.checkSerializable;
 import static com.hazelcast.security.permission.ActionConstants.ACTION_WRITE;
+import static com.hazelcast.sql.impl.SqlExceptionUtils.isIntegrityConstraintViolation;
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -229,6 +230,9 @@ public final class WriteJdbcP<T> extends XaSinkProcessorBase {
                 connection.rollback();
             } catch (SQLException sqlException) {
                 logger.severe("Exception during rollback", sqlException);
+            }
+            if (isIntegrityConstraintViolation(e)) {
+                throw new JetException("Constraint violation: " + e.getMessage());
             }
             if (isNonTransientPredicate.test(e) || snapshotUtility.usesTransactionLifecycle()) {
                 throw ExceptionUtil.rethrow(e);
