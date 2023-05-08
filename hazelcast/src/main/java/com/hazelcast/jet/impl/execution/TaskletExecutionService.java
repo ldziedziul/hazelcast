@@ -70,6 +70,7 @@ import static com.hazelcast.spi.properties.ClusterProperty.JET_IDLE_COOPERATIVE_
 import static com.hazelcast.spi.properties.ClusterProperty.JET_IDLE_COOPERATIVE_MIN_MICROSECONDS;
 import static com.hazelcast.spi.properties.ClusterProperty.JET_IDLE_NONCOOPERATIVE_MAX_MICROSECONDS;
 import static com.hazelcast.spi.properties.ClusterProperty.JET_IDLE_NONCOOPERATIVE_MIN_MICROSECONDS;
+import static com.hazelcast.sql.impl.SqlExceptionUtils.isIntegrityConstraintViolation;
 import static java.lang.Thread.currentThread;
 import static java.util.Collections.emptyList;
 import static java.util.concurrent.Executors.newCachedThreadPool;
@@ -281,6 +282,8 @@ public class TaskletExecutionService {
         } else if (e instanceof ResultLimitReachedException) {
             logger.fine("SQL LIMIT reached.");
             t.executionTracker.exception(e);
+        } else if (isIntegrityConstraintViolation(e)) {
+            t.executionTracker.exception(new JetException("Constraint violation: " + e.getMessage()));
         } else {
             logger.info("Exception in " + t.tasklet, e);
             t.executionTracker.exception(new JetException("Exception in " + t.tasklet + ": " + e, e));
